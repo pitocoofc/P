@@ -3,16 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Assistente Virtual - Puter.js</title>
+    <title>Assistente Virtual - Corrigido</title>
     
-    <!-- Importação do Puter.js (Oficial, Gratuito e Sem Chave) -->
+    <!-- Importação Oficial do Puter.js (Sem chaves e sem backend) -->
     <script src="https://puter.com"></script>
 
     <style>
-        /* Estilos básicos para uma interface moderna e limpa */
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f4f6f9;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: #f0f2f5;
             margin: 0;
             padding: 20px;
             display: flex;
@@ -34,7 +33,7 @@
         }
 
         .chat-header {
-            background-color: #007bff;
+            background-color: #25d366;
             color: #ffffff;
             padding: 15px;
             text-align: center;
@@ -49,7 +48,7 @@
             display: flex;
             flex-direction: column;
             gap: 10px;
-            background-color: #fafafa;
+            background-color: #efeae2;
         }
 
         .message {
@@ -58,18 +57,19 @@
             border-radius: 8px;
             font-size: 0.95em;
             line-height: 1.4;
+            word-wrap: break-word;
         }
 
         .message.user {
-            background-color: #007bff;
-            color: #ffffff;
+            background-color: #d9fdd3;
+            color: #111b21;
             align-self: flex-end;
             border-bottom-right-radius: 2px;
         }
 
         .message.bot {
-            background-color: #e9ecef;
-            color: #333333;
+            background-color: #ffffff;
+            color: #111b21;
             align-self: flex-start;
             border-bottom-left-radius: 2px;
         }
@@ -77,21 +77,20 @@
         .chat-input-area {
             display: flex;
             padding: 10px;
-            background-color: #ffffff;
-            border-top: 1px solid #eeeeee;
+            background-color: #f0f2f5;
         }
 
         .chat-input-area input {
             flex: 1;
             padding: 12px;
-            border: 1px solid #cccccc;
+            border: none;
             border-radius: 6px;
             outline: none;
             font-size: 0.95em;
         }
 
         .chat-input-area button {
-            background-color: #007bff;
+            background-color: #25d366;
             color: white;
             border: none;
             padding: 0 18px;
@@ -99,30 +98,22 @@
             border-radius: 6px;
             cursor: pointer;
             font-weight: bold;
-            transition: background 0.2s;
-        }
-
-        .chat-input-area button:hover {
-            background-color: #0056b3;
         }
 
         .chat-input-area button:disabled {
             background-color: #cccccc;
-            cursor: not-allowed;
         }
     </style>
 </head>
 <body>
 
     <div class="chat-container">
-        <div class="chat-header">Suporte - TechZone</div>
+        <div class="chat-header">Suporte Técnico - TechZone</div>
         
-        <!-- Zona onde as mensagens vão aparecer -->
         <div class="chat-messages" id="chatMessages">
             <div class="message bot">Olá! Sou o assistente da TechZone. Como posso ajudar hoje?</div>
         </div>
 
-        <!-- Zona de digitação -->
         <div class="chat-input-area">
             <input type="text" id="userInput" placeholder="Escreva a sua mensagem..." autocomplete="off">
             <button id="sendBtn" onclick="processarEnvio()">Enviar</button>
@@ -130,72 +121,59 @@
     </div>
 
     <script>
-        // 1. O CONTEXTO PRÉVIO: Altere este texto com os dados do seu projeto
+        // 1. INSTRUÇÕES DO SEU NEGÓCIO (A IA vai ler isto antes de cada resposta)
         const contextoDoNegocio = `
-            Tu és o assistente virtual da loja "TechZone", especializada em reparações de telemóveis.
-            Informações cruciais que deves saber e seguir estritamente:
-            - Localização: Avenida da Liberdade, nº 10, Lisboa.
-            - Preço da mudança de ecrã: 80€ (demora cerca de 1 hora).
-            - Preço da mudança de bateria: 40€ (demora cerca de 30 minutos).
-            - Garantia: Oferecemos 6 meses de garantia em todas as reparações.
-            Responde sempre em português de Portugal, de forma muito breve, profissional e direta.
-        `;
+Contexto do Sistema:
+És o assistente oficial da loja "TechZone" em Lisboa.
+Segues estritamente estas informações para responder:
+- Mudança de ecrã: 80€ (demora 1 hora).
+- Mudança de bateria: 40€ (demora 30 minutos).
+- Garantia: 6 meses.
+Regra: Responde sempre em português de Portugal, de forma simpática, muito curta e direta.
 
-        // Elementos da interface
+Pergunta do cliente: `;
+
         const chatMessages = document.getElementById('chatMessages');
         const userInput = document.getElementById('userInput');
         const sendBtn = document.getElementById('sendBtn');
 
-        // Escutar a tecla "Enter" no teclado para facilitar o envio
         userInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') processarEnvio();
         });
 
-        // 2. FUNÇÃO PRINCIPAL: Gere o fluxo de envio e receção
         function processarEnvio() {
             const textoUsuario = userInput.value.trim();
-            if (!textoUsuario) return; // Ignora se estiver vazio
+            if (!textoUsuario) return;
 
-            // Bloqueia a interface enquanto a IA processa para evitar cliques duplos
             desativarInterface(true);
-
-            // Adiciona a mensagem do utilizador no ecrã
             adicionarMensagemNoEcra(textoUsuario, 'user');
-            userInput.value = ''; // Limpa o campo de texto
+            userInput.value = '';
 
-            // Adiciona uma mensagem temporária de "A pensar..."
             const idMensagemPensando = adicionarMensagemNoEcra('A digitar...', 'bot');
 
-            // 3. ESTRUTURAÇÃO DAS MENSAGENS: Injeta o contexto antes da pergunta
-            const mensagensParaAPI = [
-                { role: "system", content: contextoDoNegocio },
-                { role: "user", content: textoUsuario }
-            ];
+            // 2. CORREÇÃO CRUCIAL: Unir o contexto e o texto numa única string limpa
+            const promptFinal do Prompt = contextoDoNegocio + '"' + textoUsuario + '"';
 
-            // 4. CHAMADA À API PÚBLICA DO PUTER.JS
-            puter.ai.chat(mensagensParaAPI)
+            // 3. CHAMADA DIRETA DA API PÚBLICA (Aceita a string sem falhar)
+            puter.ai.chat(promptFinal do Prompt)
                 .then(response => {
-                    // Remove o texto "A digitar..."
                     document.getElementById(idMensagemPensando).remove();
                     
-                    // Extrai a resposta textual devolvida pela IA
-                    const respostaDaIA = response.message.content;
+                    // O Puter devolve o texto diretamente ou dentro de response.message
+                    const respostaTexto = response.message ? response.message.content : response;
                     
-                    // Exibe a resposta final do robô no ecrã
-                    adicionarMensagemNoEcra(respostaDaIA, 'bot');
+                    adicionarMensagemNoEcra(respostaTexto, 'bot');
                 })
                 .catch(error => {
-                    console.error("Erro Puter API:", error);
+                    console.error("Erro na API do Puter:", error);
                     document.getElementById(idMensagemPensando).remove();
-                    adicionarMensagemNoEcra("Desculpe, ocorreu um erro na ligação. Tente novamente.", 'bot');
+                    adicionarMensagemNoEcra("Lamento, ocorreu um erro ao processar. Tente novamente.", 'bot');
                 })
                 .finally(() => {
-                    // Reativa o botão e o campo de texto
                     desativarInterface(false);
                 });
         }
 
-        // Funções auxiliares de interface
         function adicionarMensagemNoEcra(texto, remetente) {
             const idUnico = 'msg-' + Date.now();
             const div = document.createElement('div');
@@ -203,8 +181,6 @@
             div.id = idUnico;
             div.innerText = texto;
             chatMessages.appendChild(div);
-            
-            // Faz o scroll automático para a última mensagem
             chatMessages.scrollTop = chatMessages.scrollHeight;
             return idUnico;
         }
