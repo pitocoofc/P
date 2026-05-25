@@ -116,7 +116,8 @@
                 case 'json': return '📦';
                 case 'png': case 'jpg': case 'jpeg': case 'gif': return '🖼️';
                 case 'md': return '📝';
-                case 'gh': return '🔒'; // Ícone de arquivo criptografado do GhostOS
+                case 'zip': return '🔒';
+                case 'gh': return '⚠️'; // Ícone de arquivo criptografado do GhostOS
                 case 'html': case 'css': return '🌐';
                 default: return '📄';
             }
@@ -416,8 +417,8 @@
                     runBtn.style.display = 'none';
                 }
 
-                // Chaves de Criptografia baseadas na extensão .gh
-                if (ext === 'gh') {
+                // Chaves de Criptografia baseadas na extensão .zip
+                if (ext === 'zip') {
                     cryptBtn.style.display = 'none';
                     decryptBtn.style.display = 'block';
                 } else {
