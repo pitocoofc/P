@@ -18,13 +18,13 @@
 
         /* Preview, Editor e Visualizadores */
         #preview-modal { position: fixed; inset: 0; background: #000; display: none; flex-direction: column; padding: 20px; z-index: 100; }
-        #preview-body { flex: 1; display: flex; flex-direction: column; margin-top: 15px; overflow: hidden; }
+        #preview-body { flex: 1; display: flex; gap: 15px; margin-top: 15px; overflow: hidden; }
         #file-content { flex: 1; background: #111; padding: 20px; border: 1px solid #333; border-radius: 8px; font-family: 'Consolas', monospace; color: #4ade80; overflow-y: auto; white-space: pre-wrap; outline: none; }
         
         /* Containers específicos de execução */
         #image-viewer { flex: 1; display: none; justify-content: center; align-items: center; background: #111; border: 1px solid #333; border-radius: 8px; overflow: hidden; }
         #image-viewer img { max-width: 100%; max-height: 100%; object-fit: contain; }
-        #html-sandbox { flex: 1; display: none; background: #ffffff; border: 1px solid #333; border-radius: 8px; width: 100%; height: 100%; }
+        #html-sandbox { flex: 1; display: none; background: #ffffff; border: none; border-radius: 8px; width: 100%; height: 100%; }
 
         .btn-group { display: flex; gap: 8px; }
         button { background: #222; border: 1px solid #444; color: #fff; cursor: pointer; border-radius: 4px; padding: 5px 12px; font-size: 11px; font-weight: bold; }
@@ -64,6 +64,7 @@
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <h3 id="open-file-name" style="margin:0; font-weight: 300; font-size: 14px;"></h3>
             <div class="btn-group">
+                <button style="background:#3b82f6; border:none; display:none;" id="run-modal-btn" onclick="triggerExecution()">▶ EXECUTAR</button>
                 <button style="background:#34a853; border:none; display:none;" id="save-btn" onclick="saveFile()">GRAVAR</button>
                 <button onclick="closePreview()">FECHAR</button>
             </div>
@@ -90,7 +91,6 @@
         let currentDirectory = "root"; 
         let selectedTarget = null; 
 
-        // ATUALIZAÇÃO: Inclusão explícita da pasta SISTEMA na árvore inicial raiz
         if (!localStorage.getItem('ghost_vfs')) {
             const initialVFS = {
                 "root": { type: "dir", parent: null },
@@ -266,14 +266,7 @@
                 const response = await fetch(url);
                 const text = await response.text();
                 localStorage.setItem('cache_content_' + name, text);
-                
-                // Trata renderização caso o arquivo vindo do GitHub seja executável
-                const ext = name.split('.').pop().toLowerCase();
-                if(['html', 'png', 'jpg', 'jpeg', 'gif'].includes(ext)) {
-                    showModal(name, text, false, true); 
-                } else {
-                    document.getElementById('file-content').innerText = text;
-                }
+                showModal(name, text, false); 
             } catch (e) {
                 openOfflineFile(name);
             }
@@ -284,16 +277,17 @@
             showModal(name, content, false);
         }
 
-        // Exibição modular de arquivos e processos executáveis
-        function showModal(name, content, editable, autoRun = false) {
+        // Exibição do Modal - Mantém o editor e adiciona botão de Executar dinâmico
+        function showModal(name, content, editable) {
             document.getElementById('preview-modal').style.display = 'flex';
             document.getElementById('open-file-name').innerText = name;
             
             const txtArea = document.getElementById('file-content');
             const imgArea = document.getElementById('image-viewer');
             const sandbox = document.getElementById('html-sandbox');
+            const runBtn = document.getElementById('run-modal-btn');
 
-            // Reset de visibilidade
+            // Mantém área de texto aberta por padrão para leitura/edição
             txtArea.style.display = 'block';
             imgArea.style.display = 'none';
             sandbox.style.display = 'none';
@@ -302,9 +296,20 @@
             txtArea.contentEditable = editable;
             document.getElementById('save-btn').style.display = editable ? "block" : "none";
 
-            if(autoRun) {
-                executeFileContent(name, content);
+            // Se for arquivo executável, mostra o botão "EXECUTAR" no topo do modal
+            const ext = name.split('.').pop().toLowerCase();
+            if (['html', 'png', 'jpg', 'jpeg', 'gif'].includes(ext)) {
+                runBtn.style.display = 'block';
+            } else {
+                runBtn.style.display = 'none';
             }
+        }
+
+        // Função chamada pelo botão "EXECUTAR" de dentro do modal ou menu ctx
+        function triggerExecution() {
+            const name = document.getElementById('open-file-name').innerText;
+            const content = document.getElementById('file-content').innerText;
+            executeFileContent(name, content);
         }
 
         function executeFileContent(name, content) {
@@ -313,33 +318,28 @@
             const imgArea = document.getElementById('image-viewer');
             const sandbox = document.getElementById('html-sandbox');
 
-            txtArea.style.display = 'none';
-
+            // Divide a tela mudando o display do editor para criar espaço para o app rodar do lado
             if (['png', 'jpg', 'jpeg', 'gif'].includes(ext)) {
                 imgArea.style.display = 'flex';
-                // Se for conteúdo em texto/base64 do próprio editor ou link externo
                 imgArea.innerHTML = content.startsWith('http') || content.startsWith('data:') 
                     ? `<img src="${content}">` 
-                    : `<div style='padding:20px; text-align:center;'>Insira um link de imagem ou Base64 válido no arquivo para visualizá-lo.</div>`;
+                    : `<div style='padding:20px; text-align:center; font-size:11px;'>Insira uma URL de imagem direta ou String Base64 no editor.</div>`;
             } 
             else if (ext === 'html') {
                 sandbox.style.display = 'block';
-                // Grava o código no contexto seguro do iframe sandbox
-                const doc = sandbox.contentWindow.document;
-                doc.open();
-                doc.write(content);
-                doc.close();
+                // Correção Crítica: Usando srcdoc para forçar o carregamento imediato do script isolado
+                sandbox.srcdoc = content;
             }
         }
 
         function closePreview() { 
             document.getElementById('preview-modal').style.display = 'none'; 
-            document.getElementById('html-sandbox').src = "about:blank"; // Limpa execução anterior
+            document.getElementById('html-sandbox').removeAttribute('srcdoc'); // Descarrega a memória do iframe anterior
+            document.getElementById('html-sandbox').src = "about:blank"; 
         }
         
         function exitApp() { window.parent.postMessage({ type: 'CLOSE_WINDOW' }, "*"); }
 
-        /* MÓDULO EXPANDIDO DO MENU DE CONTEXTO */
         function openContextMenu(x, y) {
             const menu = document.getElementById('context-menu');
             const runBtn = document.getElementById('ctx-run-btn');
@@ -348,7 +348,6 @@
             menu.style.left = `${x}px`;
             menu.style.top = `${y}px`;
 
-            // Verifica se o alvo é elegível para execução (.html ou imagens)
             if (selectedTarget && selectedTarget.type === 'file') {
                 const ext = selectedTarget.name.split('.').pop().toLowerCase();
                 if (['html', 'png', 'jpg', 'jpeg', 'gif'].includes(ext)) {
@@ -361,7 +360,7 @@
             }
         }
 
-        // Lógica de Execução via Menu
+        // Executar direto pelo menu de contexto
         document.getElementById('ctx-run-btn').onclick = () => {
             if (!selectedTarget || selectedTarget.type !== 'file') return;
             const userFiles = getUserFiles();
@@ -375,7 +374,6 @@
             executeFileContent(selectedTarget.name, content);
         };
 
-        // Lógica de Renomear
         document.getElementById('ctx-rename-btn').onclick = () => {
             if (!selectedTarget) return;
             const newName = prompt(`Renomear ${selectedTarget.name} para:`, selectedTarget.name);
@@ -385,11 +383,9 @@
                 let vfs = getVFS();
                 if (vfs[newName]) return alert("Este nome de diretório já existe.");
                 
-                // Transfere o ponteiro da pasta antiga para o novo nome
                 vfs[newName] = vfs[selectedTarget.name];
                 delete vfs[selectedTarget.name];
                 
-                // Reatribui todos os filhos da pasta antiga para a nova estrutura
                 Object.keys(vfs).forEach(k => {
                     if(vfs[k].parent === selectedTarget.name) vfs[k].parent = newName;
                 });
@@ -412,7 +408,6 @@
             renderHome();
         };
 
-        // Lógica de Exclusão
         document.getElementById('ctx-delete-btn').onclick = () => {
             if (!selectedTarget) return;
 
