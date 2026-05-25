@@ -35,7 +35,7 @@
         #status-bar { font-size: 10px; color: #555; margin-top: 10px; text-transform: uppercase; letter-spacing: 1px; }
 
         /* Menu de Contexto customizado */
-        #context-menu { position: absolute; background: #161616; border: 1px solid #333; border-radius: 4px; display: none; flex-direction: column; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); padding: 4px 0; min-width: 120px; }
+        #context-menu { position: absolute; background: #161616; border: 1px solid #333; border-radius: 4px; display: none; flex-direction: column; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); padding: 4px 0; min-width: 130px; }
         .context-item { padding: 8px 16px; font-size: 11px; color: #eee; cursor: pointer; text-transform: uppercase; }
         .context-item:hover { background: #3b82f6; color: #fff; }
         .context-delete { color: #ef4444; }
@@ -78,6 +78,8 @@
 
     <div id="context-menu">
         <div class="context-item" id="ctx-run-btn" style="display: none; font-weight: bold; color: #4ade80;">Executar</div>
+        <div class="context-item" id="ctx-crypt-btn" style="display: none; color: #fbbf24;">🔒 Criptografar</div>
+        <div class="context-item" id="ctx-decrypt-btn" style="display: none; color: #60a5fa;">🔓 Descriptografar</div>
         <div class="context-item" id="ctx-rename-btn">Renomear</div>
         <div class="context-item context-delete" id="ctx-delete-btn">Excluir</div>
     </div>
@@ -114,7 +116,7 @@
                 case 'json': return '📦';
                 case 'png': case 'jpg': case 'jpeg': case 'gif': return '🖼️';
                 case 'md': return '📝';
-                case 'gh': return '⚠️';
+                case 'gh': return '🔒'; // Ícone de arquivo criptografado do GhostOS
                 case 'html': case 'css': return '🌐';
                 default: return '📄';
             }
@@ -142,7 +144,14 @@
 
             Object.keys(userFiles).forEach(name => {
                 if (userFiles[name].folder === currentDirectory) {
-                    renderItem(name, 'file', () => showModal(name, userFiles[name].content, true));
+                    // Arquivos criptografados abrem direto com aviso, sem ler o conteúdo bruto
+                    renderItem(name, 'file', () => {
+                        if(name.endsWith('.gh')) {
+                            alert("Este arquivo está criptografado! Clique com o botão direito (ou segure) e selecione 'Descriptografar'.");
+                        } else {
+                            showModal(name, userFiles[name].content, true);
+                        }
+                    });
                 }
             });
 
@@ -278,7 +287,6 @@
             showModal(name, content, false);
         }
 
-        // Exibição do Modal - Mantém o editor e adiciona botão de Executar dinâmico
         function showModal(name, content, editable) {
             document.getElementById('preview-modal').style.display = 'flex';
             document.getElementById('open-file-name').innerText = name;
@@ -288,7 +296,6 @@
             const sandbox = document.getElementById('html-sandbox');
             const runBtn = document.getElementById('run-modal-btn');
 
-            // Mantém área de texto aberta por padrão para leitura/edição
             txtArea.style.display = 'block';
             imgArea.style.display = 'none';
             sandbox.style.display = 'none';
@@ -297,7 +304,6 @@
             txtArea.contentEditable = editable;
             document.getElementById('save-btn').style.display = editable ? "block" : "none";
 
-            // Se for arquivo executável, mostra o botão "EXECUTAR" no topo do modal
             const ext = name.split('.').pop().toLowerCase();
             if (['html', 'png', 'jpg', 'jpeg', 'gif'].includes(ext)) {
                 runBtn.style.display = 'block';
@@ -306,7 +312,6 @@
             }
         }
 
-        // Função chamada pelo botão "EXECUTAR" de dentro do modal ou menu ctx
         function triggerExecution() {
             const name = document.getElementById('open-file-name').innerText;
             const content = document.getElementById('file-content').innerText;
@@ -319,7 +324,6 @@
             const imgArea = document.getElementById('image-viewer');
             const sandbox = document.getElementById('html-sandbox');
 
-            // Divide a tela mudando o display do editor para criar espaço para o app rodar do lado
             if (['png', 'jpg', 'jpeg', 'gif'].includes(ext)) {
                 imgArea.style.display = 'flex';
                 imgArea.innerHTML = content.startsWith('http') || content.startsWith('data:') 
@@ -328,22 +332,75 @@
             } 
             else if (ext === 'html') {
                 sandbox.style.display = 'block';
-                // Correção Crítica: Usando srcdoc para forçar o carregamento imediato do script isolado
                 sandbox.srcdoc = content;
             }
         }
 
         function closePreview() { 
             document.getElementById('preview-modal').style.display = 'none'; 
-            document.getElementById('html-sandbox').removeAttribute('srcdoc'); // Descarrega a memória do iframe anterior
+            document.getElementById('html-sandbox').removeAttribute('srcdoc'); 
             document.getElementById('html-sandbox').src = "about:blank"; 
         }
         
         function exitApp() { window.parent.postMessage({ type: 'CLOSE_WINDOW' }, "*"); }
 
+        /* NÚCLEO DE CRIPTOGRAFIA NATIVA AES-256 (GHOSTOS CRYPTO-ENGINE) */
+        async function getCryptoKey(password, salt) {
+            const enc = new TextEncoder();
+            const keyMaterial = await crypto.subtle.importKey(
+                "raw", enc.encode(password), "PBKDF2", false, ["deriveKey"]
+            );
+            return crypto.subtle.deriveKey(
+                { name: "PBKDF2", salt: salt, iterations: 100000, hash: "SHA-256" },
+                keyMaterial,
+                { name: "AES-GCM", length: 256 },
+                false,
+                ["encrypt", "decrypt"]
+            );
+        }
+
+        async function encryptData(text, password) {
+            const enc = new TextEncoder();
+            const salt = crypto.getRandomValues(new Uint8Array(16));
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+            const key = await getCryptoKey(password, salt);
+            
+            const encrypted = await crypto.subtle.encrypt(
+                { name: "AES-GCM", iv: iv }, key, enc.encode(text)
+            );
+
+            // Junta as partes estruturais para exportação limpa em string única Base64
+            const rawResult = new Uint8Array(salt.length + iv.length + encrypted.byteLength);
+            rawResult.set(salt, 0);
+            rawResult.set(iv, salt.length);
+            rawResult.set(new Uint8Array(encrypted), salt.length + iv.length);
+
+            return btoa(String.fromCharCode.apply(null, rawResult));
+        }
+
+        async function decryptData(base64Data, password) {
+            try {
+                const rawData = new Uint8Array(atob(base64Data).split("").map(c => c.charCodeAt(0)));
+                const salt = rawData.slice(0, 16);
+                const iv = rawData.slice(16, 28);
+                const encrypted = rawData.slice(28);
+
+                const key = await getCryptoKey(password, salt);
+                const decrypted = await crypto.subtle.decrypt(
+                    { name: "AES-GCM", iv: iv }, key, encrypted
+                );
+
+                return new TextDecoder().decode(decrypted);
+            } catch (e) {
+                throw new Error("Senha incorreta ou integridade do pacote corrompida.");
+            }
+        }
+
         function openContextMenu(x, y) {
             const menu = document.getElementById('context-menu');
             const runBtn = document.getElementById('ctx-run-btn');
+            const cryptBtn = document.getElementById('ctx-crypt-btn');
+            const decryptBtn = document.getElementById('ctx-decrypt-btn');
             
             menu.style.display = 'flex';
             menu.style.left = `${x}px`;
@@ -351,15 +408,94 @@
 
             if (selectedTarget && selectedTarget.type === 'file') {
                 const ext = selectedTarget.name.split('.').pop().toLowerCase();
+                
+                // Controle das opções de execução
                 if (['html', 'png', 'jpg', 'jpeg', 'gif'].includes(ext)) {
                     runBtn.style.display = 'block';
                 } else {
                     runBtn.style.display = 'none';
                 }
+
+                // Chaves de Criptografia baseadas na extensão .gh
+                if (ext === 'gh') {
+                    cryptBtn.style.display = 'none';
+                    decryptBtn.style.display = 'block';
+                } else {
+                    cryptBtn.style.display = 'block';
+                    decryptBtn.style.display = 'none';
+                }
             } else {
                 runBtn.style.display = 'none';
+                cryptBtn.style.display = 'none';
+                decryptBtn.style.display = 'none';
             }
         }
+
+        // Evento de Acionamento da Criptografia
+        document.getElementById('ctx-crypt-btn').onclick = async () => {
+            if (!selectedTarget || selectedTarget.type !== 'file') return;
+            const password = prompt("Defina a chave de segurança (Senha) para criptografar este arquivo:");
+            if (!password) return;
+
+            let userFiles = getUserFiles();
+            const targetFile = userFiles[selectedTarget.name];
+            if (!targetFile) return alert("Arquivos de sistema do Git não podem ser reescritos localmente.");
+
+            try {
+                // Junta o nome original e tipo dentro do pacote cifrado para recuperação
+                const packageData = JSON.stringify({
+                    originalName: selectedTarget.name,
+                    content: targetFile.content
+                });
+
+                const cipherText = await encryptData(packageData, password);
+                const secureName = selectedTarget.name + ".gh";
+
+                userFiles[secureName] = {
+                    content: cipherText,
+                    folder: currentDirectory
+                };
+
+                delete userFiles[selectedTarget.name];
+                saveUserFiles(userFiles);
+                renderHome();
+                alert("Arquivo criptografado com sucesso via AES-256-GCM!");
+            } catch (err) {
+                alert("Erro ao criptografar: " + err.message);
+            }
+        };
+
+        // Evento de Descriptografia 
+        document.getElementById('ctx-decrypt-btn').onclick = async () => {
+            if (!selectedTarget || selectedTarget.type !== 'file') return;
+            const password = prompt("Insira a chave de segurança (Senha) para descriptografar:");
+            if (!password) return;
+
+            let userFiles = getUserFiles();
+            const targetFile = userFiles[selectedTarget.name];
+
+            try {
+                const decryptedRaw = await decryptData(targetFile.content, password);
+                const packageData = JSON.parse(decryptedRaw);
+
+                // Evita colisão se um arquivo limpo de mesmo nome já existir no diretório
+                if(userFiles[packageData.originalName]) {
+                    packageData.originalName = "RESTORED_" + packageData.originalName;
+                }
+
+                userFiles[packageData.originalName] = {
+                    content: packageData.content,
+                    folder: currentDirectory
+                };
+
+                delete userFiles[selectedTarget.name];
+                saveUserFiles(userFiles);
+                renderHome();
+                alert("Pacote quebrado com sucesso! Arquivo restaurado.");
+            } catch (err) {
+                alert("Falha de autenticação: " + err.message);
+            }
+        };
 
         // Executar direto pelo menu de contexto
         document.getElementById('ctx-run-btn').onclick = () => {
